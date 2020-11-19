@@ -3,8 +3,9 @@ title: "Reproducible Research: Peer Assessment 1"
 author: "Leonardo Moreno Naranjo"
 date: "17/7/2020"
 output: 
+    md_document:
+    variant: markdown_github
     prettydoc::html_pretty:
-    keep_md: true
     theme: "tactile"
     highlight: github
 ---
