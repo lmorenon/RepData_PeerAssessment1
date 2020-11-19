@@ -1,25 +1,172 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+author: "Leonardo Moreno Naranjo"
+date: "17/7/2020"
 output: 
-  html_document:
+    prettydoc::html_pretty:
     keep_md: true
+    theme: "tactile"
+    highlight: github
 ---
+
+
+## **Introduction**
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+## **Files**  
+- [GitHub Repository](https://github.com/lmorenon/RepData_PeerAssessment1)
+
+## **Libraries**
+
+```{r,results='hide',message=FALSE,warning=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lattice)
+library(rmarkdown)
+library(knitr)
+library(lubridate)
+library(prettydoc)
+```
 
 
 ## Loading and preprocessing the data
 
+1. Download or fork/import the [GitHub Repository](https://github.com/lmorenon/RepData_PeerAssessment1) and load the *activity.zip* file in your R enviroment
 
+```{r,message=FALSE,results='hide'}
+DB_activity <- read_csv("activity.zip")
+Sys.setlocale("LC_TIME", "English")
+```
+
+2. Add group variables
+
+```{r}
+days <- weekdays(DB_activity$date)
+DB_activity <- cbind(DB_activity,days)
+```
 
 ## What is mean total number of steps taken per day?
 
+1. Histogram of the total number of steps taken each day
+```{r plot_1,message=FALSE}
+steps_day <- DB_activity %>% group_by(date) %>% summarise(steps_per_day = sum(steps,na.rm=TRUE))
+    
 
+hist(steps_day$steps_per_day,main = "Total Steps taken per day", 
+     xlab = "Steps per day")
+```  
+  
+2.Calculate and report the mean and median of the total number of steps taken per day  
+
+```{r}
+mean_steps<-mean(steps_day$steps_per_day)
+median_steps<-median(steps_day$steps_per_day, na.rm = TRUE)
+```
+
+The mean number of steps taken per day is `r mean_steps`. The median steps taken per day is `r median_steps`.
 
 ## What is the average daily activity pattern?
 
+1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
 
+```{r plot_2,message=FALSE}
+average_activity <- DB_activity %>% group_by(interval) %>% 
+     summarise(avg_activity = mean(steps,na.rm=TRUE))
+
+plot(average_activity$interval, 
+     average_activity$avg_activity, type = "l", xlab="Interval (5 minutes)", 
+     ylab="Average steps", main="Average steps per 5 minutes intervals")
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r}
+Max_steps <- average_activity[which.max(average_activity$avg_activity),1]
+print(as.vector(Max_steps))
+```
+
+The 5-minute interval, on average across all the days in the dataset,that contains the maximum number of steps is `r Max_steps`.
 
 ## Imputing missing values
 
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r}
+NAs<-sum(is.na(DB_activity$steps))
+NAs
+```
 
+The number of missing values in the dataset is `r NAs`.  
+
+2. Devise a strategy for filling in all of the missing values in the dataset  
+
+**Imputate Method: Average steps (5 min-intervals) per day replaces NAs**
+
+```{r,message=FALSE}
+steps_impute <- average_activity$avg_activity[match(DB_activity$interval,
+                                                    average_activity$interval)]
+
+DB_act_imputate <-transform(DB_activity, 
+                            steps = ifelse(is.na(DB_activity$steps), 
+                            yes = steps_impute, no = DB_activity$steps))
+steps_day_imp <- DB_act_imputate %>% group_by(date) %>% 
+                 summarise(steps_per_day = sum(steps))
+
+```
+New dataset whitout NAs: **DB_act_imputate**  
+
+3. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. 
+```{r plot_3}
+hist(steps_day_imp$steps_per_day,main = "Total Steps taken per day (Replaced NAs)", 
+     xlab = "Steps per day")
+```
+
+```{r}
+mean_steps_replacedNAs<-mean(steps_day_imp$steps_per_day)
+
+meadian_steps_replacedNAs<-median(steps_day_imp$steps_per_day,na.rm = TRUE)
+```
+
+The mean number of steps with replaced NAs, taken per day is `r mean_steps_replacedNAs`. The median steps with replaced NAs, taken per day is `r meadian_steps_replacedNAs`.
+
+* Do these values differ from the estimates from the first part of the assignment?
+
+```{r}
+t.test(steps_day$steps_per_day,steps_day_imp$steps_per_day)
+```
+
+The **Welch Two Sample t-test** reveals that the original and imputated datasets **don't differ** at **p < 0.05**.
+
+* What is the impact of imputing missing data on the estimates of the total daily number of steps?  
+The impact of imputing missing data on the estimates of the total daily number of steps reflects in two ways: 
+    + **skew the data**: Reduces the variability of the measures (depends of sample size).
+    + **Data Accuracy**: The impute data possibly doesn't represent the true values found in the reality.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+1. Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+```{r}
+DB_act_days <- DB_activity %>% mutate(weekdays= ifelse(days=="Saturday" | 
+                                      days=="Sunday", "Weekend", "Weekday"))
+DB_act_days$weekdays <-  as.factor(DB_act_days$weekdays)
+```
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
+
+```{r,message=FALSE}
+avg_steps_daytype <- DB_act_days %>% group_by(weekdays,interval) %>%  
+                    summarise(avg_steps=mean(steps,na.rm = TRUE))
+
+with(avg_steps_daytype, 
+     xyplot(avg_steps ~ interval | weekdays, 
+            type = "l",      
+            main = "Average Steps per Intervals by dayType",
+            xlab = "Daily Intervals",
+            ylab = "Average Steps"))
+```
+  
+----------------------------------------------------------------------------------------------
+
+**Thanks for review me**  
+**This project was developed in the context of the course "Reproducible Research" from Coursera**
